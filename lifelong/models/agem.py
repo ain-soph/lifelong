@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 from .gem import GEM
 from trojanzoo.environ import env
@@ -23,14 +23,14 @@ class AGEM(GEM):
         self.param_list['agem'] = ['sample_size']
         self.sample_size = sample_size
 
-    # def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int):
-    #     _, targets = dataset_to_list(dataset, label_only=True)
-    #     class_list = list(set(targets))
-    #     targets = torch.tensor(targets)
-    #     perm = torch.randperm(len(targets))
-    #     idx = torch.cat([perm[(targets[perm] == _class).nonzero(as_tuple=True)[0][:batch_size]]
-    #                      for _class in class_list])
-    #     return sample_batch(dataset, idx=idx)
+    def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int):
+        _, targets = dataset_to_list(dataset, label_only=True)
+        class_list = list(set(targets))
+        targets = torch.tensor(targets)
+        perm = torch.randperm(len(targets))
+        idx = torch.cat([perm[(targets[perm] == _class).nonzero(as_tuple=True)[0][:batch_size]]
+                         for _class in class_list])
+        return sample_batch(dataset, idx=idx)
 
     def after_loss_fn(self, optimizer: torch.optim.Optimizer,
                       _iter: int = None, total_iter: int = None, **kwargs):
@@ -58,24 +58,15 @@ class AGEM(GEM):
         self.zero_grad()
         return current_grad, prev_grad
 
-    # @staticmethod
-    # def project2cone2(current_grad: torch.Tensor, prev_grad: torch.Tensor) -> torch.Tensor:
-    #     with torch.no_grad():
-    #         dot_result = current_grad.dot(prev_grad)
-    #         if dot_result > 0:
-    #             return current_grad
-    #         grad = current_grad - (dot_result / prev_grad.pow(2).sum()) * prev_grad
-    #         # print(grad.dot(current_grad) / grad.norm(p=2) / current_grad.norm(p=2))
-    #         # print(grad.dot(prev_grad) / grad.norm(p=2) / prev_grad.norm(p=2))
-    #         # print(prev_grad.dot(current_grad) / prev_grad.norm(p=2) / current_grad.norm(p=2))
-    #         # print()
-    #         return grad
-
     @staticmethod
-    def project2cone2(grad_real, grad_ref):
-        grad = grad_real
-        grad_ref_norm = torch.norm(grad_ref)
-        dot = torch.sum((grad_real / grad_ref_norm) * (grad_ref / grad_ref_norm))
-        if dot <= 0:
-            grad = grad_real - dot * grad_ref
-        return grad
+    def project2cone2(current_grad: torch.Tensor, prev_grad: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            dot_result = current_grad.dot(prev_grad)
+            if dot_result > 0:
+                return current_grad
+            grad = current_grad - (dot_result / prev_grad.pow(2).sum()) * prev_grad
+            return grad
+            # print(grad.dot(current_grad) / grad.norm(p=2) / current_grad.norm(p=2))
+            # print(grad.dot(prev_grad) / grad.norm(p=2) / prev_grad.norm(p=2))
+            # print(prev_grad.dot(current_grad) / prev_grad.norm(p=2) / current_grad.norm(p=2))
+            # print()

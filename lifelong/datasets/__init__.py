@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 from .split_dataset import SplitDataset
 from .cifar100 import CIFAR100

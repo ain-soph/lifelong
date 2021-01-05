@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 from .split_dataset import SplitDataset
 from trojanvision.datasets import CIFAR100

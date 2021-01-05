@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 from .split_model import SplitModel
 from trojanzoo.utils.data import sample_batch

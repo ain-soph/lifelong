@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 from lifelong.datasets.split_dataset import SplitDataset
 from trojanvision.models import ImageModel
@@ -7,8 +7,6 @@ from trojanzoo.utils.output import prints, ansi
 import torch
 import torch.utils.data
 import torch.optim.lr_scheduler
-import numpy as np
-from typing import Union
 
 
 class SplitModel(ImageModel):
