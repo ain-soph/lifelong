@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from .split_model import SplitModel
-from .resnet import ResNetcomp
+from .resnet import ResNetS
 import trojanvision.models
 
 class_dict: dict[str, SplitModel] = {
-    'resnetcomp': ResNetcomp,
+    'resnets': ResNetS,
 }
 
 

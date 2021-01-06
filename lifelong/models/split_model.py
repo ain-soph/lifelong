@@ -8,6 +8,7 @@ from trojanzoo.utils.output import prints, ansi
 import torch
 import torch.utils.data
 import torch.optim.lr_scheduler
+from typing import Callable
 
 
 class SplitModel(ImageModel):
@@ -38,7 +39,9 @@ class SplitModel(ImageModel):
 
     def _train(self, *args, epoch: int = None, loader_train: list[torch.utils.data.DataLoader] = None,
                validate_interval: int = 10, save: bool = False, amp: bool = False,
-               lr_scheduler=None, indent: int = 0, **kwargs):
+               lr_scheduler=None, indent: int = 0, after_task_fn: Callable[..., None] = None, **kwargs):
+        if after_task_fn is None and hasattr(self, 'after_task_fn'):
+            after_task_fn = self.after_task_fn
         if loader_train is None:
             loader_train = self.dataset.loader['train']
         for task_id in range(self.dataset.split_num):
@@ -48,10 +51,13 @@ class SplitModel(ImageModel):
                            validate_interval=validate_interval, save=save, amp=amp,
                            start_epoch=task_id * epoch, indent=indent + 10,
                            tag=str(task_id), lr_scheduler=lr_scheduler, **kwargs)
+            if callable(after_task_fn):
+                after_task_fn(task_id=task_id)
+
             # if isinstance(lr_scheduler, torch.optim.lr_scheduler._LRScheduler):
             #     lr_scheduler.step(0)
 
-    def _validate(self, *args, loader=None, _epoch: int = None, tag: str = '', **kwargs):
+    def _validate(self, *args, loader=None, _epoch: int = None, tag: str = '', writer: SummaryWriter = None, **kwargs):
         loss = 0.0
         acc = 0.0
         if loader is None:

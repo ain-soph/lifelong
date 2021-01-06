@@ -15,6 +15,6 @@ class CIFAR100(CIFAR100, SplitDataset):
             class_order = []
         super().__init__(split_num=split_num, class_order=class_order, **kwargs)
 
-    @staticmethod
-    def get_transform(mode: str) -> transforms.ToTensor:
-        return transforms.ToTensor()
+    # @staticmethod
+    # def get_transform(mode: str) -> transforms.ToTensor:
+    #     return transforms.ToTensor()

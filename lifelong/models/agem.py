@@ -24,18 +24,18 @@ class AGEM(GEM):
         self.param_list['agem'] = ['sample_size']
         self.sample_size = sample_size
 
-    def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int):
-        _, targets = dataset_to_list(dataset, label_only=True)
-        class_list = list(set(targets))
-        targets = torch.tensor(targets)
-        perm = torch.randperm(len(targets))
-        idx = torch.cat([perm[(targets[perm] == _class).nonzero(as_tuple=True)[0][:batch_size]]
-                         for _class in class_list])
-        return sample_batch(dataset, idx=idx)
+    # def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int):
+    #     _, targets = dataset_to_list(dataset, label_only=True)
+    #     class_list = list(set(targets))
+    #     targets = torch.tensor(targets)
+    #     perm = torch.randperm(len(targets))
+    #     idx = torch.cat([perm[(targets[perm] == _class).nonzero(as_tuple=True)[0][:batch_size]]
+    #                      for _class in class_list])
+    #     return sample_batch(dataset, idx=idx)
 
     def after_loss_fn(self, optimizer: torch.optim.Optimizer,
                       _iter: int = None, total_iter: int = None, **kwargs):
-        self.lr_decay_fn(optimizer=optimizer, _iter=_iter, total_iter=total_iter)
+        # self.lr_decay_fn(optimizer=optimizer, _iter=_iter, total_iter=total_iter)
         if not hasattr(self, 'params'):
             self.params: list[torch.nn.Parameter] = [param for param in self.parameters() if param.requires_grad]
             self.grad_dims: list[int] = [param.data.numel() for param in self.params]
@@ -62,7 +62,7 @@ class AGEM(GEM):
     @staticmethod
     def project2cone2(current_grad: torch.Tensor, prev_grad: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            dot_result = current_grad.dot(prev_grad)
+            dot_result = current_grad @ prev_grad
             if dot_result > 0:
                 return current_grad
             grad = current_grad - (dot_result / prev_grad.pow(2).sum()) * prev_grad
