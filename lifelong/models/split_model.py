@@ -8,6 +8,7 @@ from trojanzoo.utils.output import prints, ansi
 import torch
 import torch.utils.data
 import torch.optim.lr_scheduler
+from torch.utils.tensorboard import SummaryWriter
 from typing import Callable
 
 
