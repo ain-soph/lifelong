@@ -69,10 +69,10 @@ class SplitModel(ImageModel):
             loader = self.dataset.loader['valid'][tid]
             loss, acc = super()._validate(*args, loader=loader, tag=str(tid),
                                           print_prefix='Validate ' + str(tid),
-                                          _epoch=_epoch, **kwargs)
+                                          _epoch=_epoch, writer=writer, **kwargs)
             accs.append(acc.detach().item())
 
-        print("Average Acc: ", np.mean(accs))
+        # print("Average Acc: ", np.mean(accs))
         if isinstance(writer, SummaryWriter) and isinstance(_epoch, int):
-            writer.add_scalars(main_tag='Loss/' + main_tag, tag_scalar_dict={tag: np.mean(accs)}, global_step=_epoch)
+            writer.add_scalar('Acc/average', np.mean(accs), _epoch)
         return loss, acc
