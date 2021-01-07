@@ -10,7 +10,7 @@ import torch.utils.data
 import torch.optim.lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 from typing import Callable
-
+import numpy as np
 
 class SplitModel(ImageModel):
     def __init__(self, *args, **kwargs):
@@ -58,7 +58,8 @@ class SplitModel(ImageModel):
             # if isinstance(lr_scheduler, torch.optim.lr_scheduler._LRScheduler):
             #     lr_scheduler.step(0)
 
-    def _validate(self, *args, loader=None, _epoch: int = None, tag: str = '', writer: SummaryWriter = None, **kwargs):
+    def _validate(self, *args, loader=None, _epoch: int = None, main_tag:str = 'average', 
+                  tag: str = '', writer: SummaryWriter = None, **kwargs):
         loss = 0.0
         acc = 0.0
         accs = []
@@ -69,7 +70,9 @@ class SplitModel(ImageModel):
             loss, acc = super()._validate(*args, loader=loader, tag=str(tid),
                                           print_prefix='Validate ' + str(tid),
                                           _epoch=_epoch, **kwargs)
-            accs.append(acc)
+            accs.append(acc.detach().item())
 
-        writer.add_scalar('Acc/', tag, torch.mean(accs).item(), _epoch)
+        print("Average Acc: ", np.mean(accs))
+        if isinstance(writer, SummaryWriter) and isinstance(_epoch, int):
+            writer.add_scalars(main_tag='Loss/' + main_tag, tag_scalar_dict={tag: np.mean(accs)}, global_step=_epoch)
         return loss, acc
