@@ -61,6 +61,7 @@ class SplitModel(ImageModel):
     def _validate(self, *args, loader=None, _epoch: int = None, tag: str = '', writer: SummaryWriter = None, **kwargs):
         loss = 0.0
         acc = 0.0
+        accs = []
         if loader is None:
             loader = self.dataset.loader['valid']
         for tid in range(self.current_task + 1):
@@ -68,4 +69,7 @@ class SplitModel(ImageModel):
             loss, acc = super()._validate(*args, loader=loader, tag=str(tid),
                                           print_prefix='Validate ' + str(tid),
                                           _epoch=_epoch, **kwargs)
+            accs.append(acc)
+
+        writer.add_scalar('Acc/', tag, torch.mean(accs).item(), _epoch)
         return loss, acc
