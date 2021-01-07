@@ -3,7 +3,7 @@
 
 from typing import Callable
 from .split_model import SplitModel
-from trojanzoo.utils.data import sample_batch
+from trojanzoo.utils.data import dataset_to_list, sample_batch
 from trojanzoo.utils.influence import InfluenceFunction
 from trojanzoo.environ import env
 
@@ -44,21 +44,62 @@ class GEM(SplitModel):
         memory_method = memory_method if memory_method is not None else self.memory_method
         # memory_method_fn: Callable[[torch.utils.data.Dataset, int], (list[torch.Tensor], list[int])] = sample_batch
         if memory_method == 'influence':
-            return self.influence_sample_batch(dataset, batch_size=batch_size)
+            return self.sample_batch_influence(dataset, batch_size=batch_size)
         return sample_batch(dataset, batch_size=batch_size)
 
-    def influence_sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int) -> tuple[list, list[int]]:
+    def sample_batch_cluster(self, dataset: torch.utils.data.Dataset, batch_size: int) -> tuple[list, list[int]]:
+        _, targets = dataset_to_list(dataset, label_only=True)  # list[int]
+        cluster_num = len(set(targets))
+        loader = self.dataset.get_dataloader(dataset=dataset, shuffle=False)
+        feats: list[torch.Tensor] = []
+        for data in loader:
+            _input, _ = self.get_data(data)
+            feats.append(self.get_final_fm(_input).detach().cpu())
+        feats = torch.cat(feats)    # (N, D)
+        # cluster
+        # majority vote -> each cluster label
+        # remove points with wrong clustering label result using ground-truth labels
+        # find points nearest cluster centers (each class find (batch_size // cluster_num))
+
+    def sample_batch_influence(self, dataset: torch.utils.data.Dataset, batch_size: int,
+                               orthogonal: bool = True) -> tuple[list, list[int]]:
         assert len(dataset) >= batch_size
         loader = self.dataset.get_dataloader(dataset=dataset, shuffle=False)
         hess_inv = torch.cholesky_inverse(self.influence.calc_H(loader))
         self.memory_hess.append(hess_inv.detach().cpu())
-        influence_list: list[float] = []
-        for data in loader:
-            _input, _label = self.get_data(data)
-            influence_list.extend(self.influence.up_loss(_input, _label, hess_inv=hess_inv))
-        idx = list(range(len(dataset)))
-        _, idx = zip(*sorted(zip(influence_list, idx)))
-        idx = list(idx)[-batch_size:]
+        idx: list[int] = []
+        if orthogonal:
+            memory_bases: torch.Tensor = torch.zeros(0, self.influence.parameter.numel(),
+                                                     device=env['device'])  # (M, D)
+            for _ in range(batch_size):
+                influence_list: list[float] = []
+                v_list: torch.Tensor = torch.zeros(0, memory_bases.shape[1],
+                                                   device=memory_bases.device)  # (0, D)
+                memory_metric = hess_inv @ memory_bases.t() @ memory_bases  # (D,D)
+                for data in loader:
+                    _input, _label = self.get_data(data)
+                    v = self.influence.calc_v(_input, _label)   # (N, D)
+                    v -= v @ memory_metric   # (N, D)
+                    v_list = torch.cat([v_list, v])
+                    influence_list.extend(self.influence.up_loss(v=v, hess_inv=hess_inv))
+                    # Gram–Schmidt orthogonalization
+                    # for j in range(len(v)):
+                    #     for i in range(len(memory_bases)):
+                    #         v[j] -= v[j] @ memory_bases[i] * memory_bases[i]
+                    # # v -= v @ memory_bases.t() @ memory_bases
+                    # memory_bases are already normalized
+                best_idx = int(np.argmax(influence_list))
+                memory_bases = torch.cat([memory_bases, v_list[best_idx].unsqueeze(0) / influence_list[best_idx]])
+                idx.append(best_idx)
+        else:
+            influence_list: list[float] = []
+
+            for data in loader:
+                _input, _label = self.get_data(data)
+                influence_list.extend(self.influence.up_loss(_input, _label, hess_inv=hess_inv))
+            idx = list(range(len(dataset)))
+            _, idx = zip(*sorted(zip(influence_list, idx)))
+            idx = list(idx)[-batch_size:]
         return sample_batch(dataset, idx=idx)
 
     # def epoch_func(self, optimizer: torch.optim.Optimizer, _epoch: int = None, epoch: int = None,
