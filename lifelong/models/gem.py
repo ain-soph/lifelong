@@ -12,9 +12,11 @@ import torch.nn
 import torch.autograd
 import torch.optim
 import torch.utils.data
+from kmeans_pytorch import kmeans
 import numpy as np
 import quadprog
 import argparse
+import itertools
 
 
 class GEM(SplitModel):
@@ -45,21 +47,59 @@ class GEM(SplitModel):
         # memory_method_fn: Callable[[torch.utils.data.Dataset, int], (list[torch.Tensor], list[int])] = sample_batch
         if memory_method == 'influence':
             return self.sample_batch_influence(dataset, batch_size=batch_size)
+        elif memory_method == 'cluster':
+            return self.sample_batch_cluster(dataset, batch_size=batch_size)
         return sample_batch(dataset, batch_size=batch_size)
 
     def sample_batch_cluster(self, dataset: torch.utils.data.Dataset, batch_size: int) -> tuple[list, list[int]]:
         _, targets = dataset_to_list(dataset, label_only=True)  # list[int]
-        cluster_num = len(set(targets))
         loader = self.dataset.get_dataloader(dataset=dataset, shuffle=False)
         feats: list[torch.Tensor] = []
         for data in loader:
             _input, _ = self.get_data(data)
             feats.append(self.get_final_fm(_input).detach().cpu())
         feats = torch.cat(feats)    # (N, D)
-        # cluster
-        # majority vote -> each cluster label
-        # remove points with wrong clustering label result using ground-truth labels
-        # find points nearest cluster centers (each class find (batch_size // cluster_num))
+
+        # kmeans clustering
+        data_size, dims = feats.shape
+        num_clusters = len(set(targets))
+
+        # cluster_ids_x (N,), cluster_centers (C, D)
+        cluster_ids_x, cluster_centers = kmeans(
+            X=feats, num_clusters=num_clusters, distance='euclidean', device=torch.device('cuda:0')
+        )
+
+        idx = []
+        remain_n = batch_size
+        correct_n = 0
+        for c in range(num_clusters):
+            # majority vote
+            _idx = torch.flatten((cluster_ids_x == c).nonzero())
+            y = torch.tensor(targets)[_idx] 
+            major_y = torch.mode(y)[0].item()
+            _idx = torch.flatten((y == major_y).nonzero())
+            correct_n += len(_idx)
+
+            # calculate dists
+            center = cluster_centers[c].unsqueeze(0)
+            dists = torch.cdist(feats[_idx], center).flatten()
+            sorted_idx = torch.sort(dists, descending=True)[1]
+
+            if c != num_clusters - 1:
+                idx.append(sorted_idx.tolist()[:(remain_n // (num_clusters - c))])
+            else:
+                idx.append(sorted_idx.tolist()[:remain_n])
+            remain_n -= (remain_n // (num_clusters - c))
+        print("\nKmeans clustering accuracy: {:.4f}".format(correct_n/len(targets)))
+
+        idx = list(itertools.chain(*idx))
+        idx = list(set(idx))
+        if len(idx) < batch_size: 
+            rest_idx = list(set(range(len(targets))) - set(idx))
+            idx += np.random.choice(rest_idx, batch_size - len(idx), replace=False).tolist()
+        assert len(idx)==batch_size
+        return sample_batch(dataset, idx=idx)
+
 
     def sample_batch_influence(self, dataset: torch.utils.data.Dataset, batch_size: int,
                                orthogonal: bool = True) -> tuple[list, list[int]]:
