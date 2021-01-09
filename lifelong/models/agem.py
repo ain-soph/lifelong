@@ -24,7 +24,7 @@ class AGEM(GEM):
         self.param_list['agem'] = ['sample_size']
         self.sample_size = sample_size
 
-    # def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int):
+    # def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int) -> tuple[list, list[int]]:
     #     _, targets = dataset_to_list(dataset, label_only=True)
     #     class_list = list(set(targets))
     #     targets = torch.tensor(targets)

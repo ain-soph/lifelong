@@ -40,9 +40,25 @@ class GEM(SplitModel):
         self.memory_data.append(torch.stack(data).pin_memory())
         self.memory_targets.append(torch.tensor(targets, dtype=torch.long).pin_memory())
 
-    def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int, memory_method: str = None):
+    def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int,
+                     memory_method: str = None) -> tuple[list, list[int]]:
         memory_method = memory_method if memory_method is not None else self.memory_method
-        # memory_method_fn: Callable[[torch.utils.data.Dataset, int], (list[torch.Tensor], list[int])] = sample_batch
+
+        _, targets = dataset_to_list(dataset, label_only=True)
+        class_list = list(set(targets))
+        _input = []
+        _label: list[int] = []
+        for _class in class_list:
+            subset = self.dataset.get_class_set(dataset, [_class])
+            # memory_method_fn: Callable[[torch.utils.data.Dataset, int], (list[torch.Tensor], list[int])] = sample_batch
+            current_input, current_label = self.sample_batch_fn(
+                subset, batch_size=batch_size, memory_method=memory_method)
+            _input.extend(current_input)
+            _label.extend(current_label)
+        return _input, _label
+
+    def sample_batch_fn(self, dataset: torch.utils.data.Dataset, batch_size: int,
+                        memory_method: str = None) -> tuple[list, list[int]]:
         if memory_method == 'influence':
             return self.sample_batch_influence(dataset, batch_size=batch_size)
         elif memory_method == 'cluster':
@@ -52,7 +68,7 @@ class GEM(SplitModel):
     def sample_batch_cluster(self, dataset: torch.utils.data.Dataset, batch_size: int) -> tuple[list, list[int]]:
         _, targets = dataset_to_list(dataset, label_only=True)  # list[int]
         _labels = torch.tensor(targets, device=env['device'])
-        num_clusters = len(set(targets))
+        num_clusters = len(set(targets)) * 2
         loader = self.dataset.get_dataloader(dataset=dataset, shuffle=False)
         feats: list[torch.Tensor] = []
         for data in loader:
@@ -63,11 +79,11 @@ class GEM(SplitModel):
         # pred_results = pred_results.argmax(dim=1)
         pred_results = feats.argmax(dim=1)
         truth_idx = torch.arange(len(_labels))[_labels == pred_results]     # (N')
-        
+
         # cluster_ids_x (N',), cluster_centers (num_clusters, D)
         cluster_labels, cluster_centers = kmeans(
             X=feats[truth_idx], num_clusters=num_clusters, distance='euclidean', device=env['device'])
-        cluster_centers: torch.Tensor = cluster_centers
+        cluster_centers: torch.Tensor = cluster_centers.to(env['device'])
 
         idx: list[int] = []
         remain_n = batch_size
@@ -81,7 +97,7 @@ class GEM(SplitModel):
             correct_n += len(correct_idx)
 
             # calculate dists
-            center: torch.Tensor = cluster_centers[c].to(env['device'])
+            center: torch.Tensor = cluster_centers[c]
             dists = torch.cdist(feats[correct_idx], center.unsqueeze(dim=0)).flatten()  # (N'_c')
             sorted_idx = correct_idx[torch.argsort(dists)]
 
@@ -90,7 +106,7 @@ class GEM(SplitModel):
             else:
                 idx.extend(sorted_idx.tolist()[:remain_n])
             remain_n -= (remain_n // (num_clusters - c))
-        print(f'\nKmeans clustering accuracy: {correct_n / len(targets):.4f}')
+        print(f'\nKmeans clustering accuracy: {correct_n / len(truth_idx):.4f}')
 
         if len(idx) < batch_size:
             rest_idx = list(set(truth_idx) - set(idx))
