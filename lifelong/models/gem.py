@@ -57,12 +57,13 @@ class GEM(SplitModel):
         feats: list[torch.Tensor] = []
         for data in loader:
             _input, _ = self.get_data(data)
-            feats.append(self.get_final_fm(_input).detach())
+            feats.append(self.get_prob(_input).detach())
         feats = torch.cat(feats)    # (N, D)
-        pred_results: torch.Tensor = self._model.classifier(feats)
-        pred_results = pred_results.argmax(dim=1)
+        # pred_results: torch.Tensor = self._model.classifier(feats)
+        # pred_results = pred_results.argmax(dim=1)
+        pred_results = feats.argmax(dim=1)
         truth_idx = torch.arange(len(_labels))[_labels == pred_results]     # (N')
-
+        
         # cluster_ids_x (N',), cluster_centers (num_clusters, D)
         cluster_labels, cluster_centers = kmeans(
             X=feats[truth_idx], num_clusters=num_clusters, distance='euclidean', device=env['device'])
@@ -80,7 +81,7 @@ class GEM(SplitModel):
             correct_n += len(correct_idx)
 
             # calculate dists
-            center: torch.Tensor = cluster_centers[c]
+            center: torch.Tensor = cluster_centers[c].to(env['device'])
             dists = torch.cdist(feats[correct_idx], center.unsqueeze(dim=0)).flatten()  # (N'_c')
             sorted_idx = correct_idx[torch.argsort(dists)]
 
