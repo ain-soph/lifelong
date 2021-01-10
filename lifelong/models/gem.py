@@ -75,9 +75,12 @@ class GEM(SplitModel):
             _input, _ = self.get_data(data)
             feats.append(self.get_prob(_input).detach())
         feats = torch.cat(feats)    # (N, D)
-        # pred_results: torch.Tensor = self._model.classifier(feats)
-        # pred_results = pred_results.argmax(dim=1)
-        pred_results = feats.argmax(dim=1)
+
+        pred_results: list[torch.Tensor] = []
+        for data in loader:
+            _input, _ = self.get_data(data)
+            pred_results.append(self.get_class(_input).detach())
+        pred_results = torch.cat(pred_results)    # (N, num_classes)
         truth_idx = torch.arange(len(_labels))[_labels == pred_results]     # (N')
 
         # cluster_ids_x (N',), cluster_centers (num_clusters, D)
