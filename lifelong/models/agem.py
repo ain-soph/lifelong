@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .gem import GEM
+from trojanvision.optim import PGD
 from trojanzoo.environ import env
 from trojanzoo.utils.data import sample_batch, dataset_to_list
 
@@ -53,6 +54,15 @@ class AGEM(GEM):
         idx = torch.randperm(len(memory_targets))[:self.sample_size]
         memory_data = memory_data[idx].to(device=env['device'])
         memory_targets = memory_targets[idx].to(device=env['device'])
+        if self.pgd is not None:
+            pgd: PGD = self.pgd
+
+            def loss_fn_new(X: torch.FloatTensor) -> torch.Tensor:  # TODO: use functools.partial
+                return -self.loss(X, memory_targets)    # TODO: loss_fn
+            memory_adv_data, _ = pgd.optimize(_input=memory_data, loss_fn=loss_fn_new)
+            memory_data = memory_adv_data
+            # memory_data = torch.cat([memory_data, memory_adv_data])
+            # memory_targets = memory_targets.repeat(2)
         memory_loss = self.loss(_input=memory_data, _label=memory_targets)
         memory_loss.backward()
         prev_grad = torch.cat([param.grad.flatten() for param in self.params])
