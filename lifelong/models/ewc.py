@@ -3,14 +3,11 @@
 
 from .split_model import SplitModel
 from trojanzoo.utils.data import dataset_to_list, sample_batch
-from trojanzoo.utils.influence import InfluenceFunction
 from trojanzoo.environ import env
+from trojanzoo.utils.influence import InfluenceFunction
+from collections import OrderedDict
 
 import torch
-from kmeans_pytorch import kmeans
-import numpy as np
-import copy
-
 from typing import TYPE_CHECKING
 import argparse    # TODO: python 3.10
 if TYPE_CHECKING:
@@ -30,39 +27,33 @@ class EWC(SplitModel):
         super().__init__(*args, **kwargs)
         self.param_list['ewc'] = ['lam']
         self.lam = lam
-        self.param_list = []
-        self.FIMs = {}
+        self.optim_params = OrderedDict()
+        self.influence = InfluenceFunction(model=self)
 
-    def update_param_list(self):
-        self.param_list = [param for param in None]  # todo: get all params in model
-
-    def star(self):
-        self.star_params = []
-        for v in range(len(self.param_list)):
-            self.star_params.append(self.param_list[v].clone())
-            
-        name = 'task' + str(len(self.optim_params)+1)
-        self.optim_params.update({name: copy.deepcopy(self.param_list)})
+    def update_optim_param(self): 
+        k = "task_" + str(len(self.optim_params))
+        self.optim_params.update({k, [param for param in self.model.parameters()]})
         
-    def ewc_reg(self, lam=10):
-        """Calculate the EWC regularizer, 
-           append it with original loss
+    def ewc_reg(self):
         """
+            Calculate the EWC regularizer, 
+            append it with the original loss.
+        """
+        params = [param for param in self.model.parameters()]           
+        FIMs = [self.influence.compute_fim(param) for param in self.model.parameters()]  # todo: calculated by current params or the optim
+        
         ewc_reg = 0 
-        for k in self.FIMs:
-            F_accum = self.FIMs[k]
-            star_params = self.optim_params[k]
-            for v in range(len(self.param_list)):
-                ewc_reg += (lam/2) * torch.sum(torch.mul(F_accum[v], 
-                 torch.square(self.param_list[v] - star_params[v])))
+        for k, optim_params in self.optim_params.items():  # for each past task
+            for i, fim in enumerate(FIMs):
+                ewc_reg += (self.lam/2) * torch.sum(torch.mul(fim[i], 
+                        torch.square(params[i] - optim_params[i])))
         
         return ewc_reg
 
     def _train(self):
-        # step1: get all optim params
-        # step2: update_param_list(self)
-        # step3: update self.FIMs
-        # step4: train_loss += ewc_reg(self.lam)
-        pass
+        # step1: training with loss+ewc_reg()
+
+        # update optim params after training
+        self.update_optim_param(self)
 
     
