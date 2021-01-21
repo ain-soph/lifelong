@@ -3,6 +3,7 @@
 from .split_model import SplitModel
 from .gem import GEM
 from .agem import AGEM
+from .ewc import EWC
 
 from trojanvision.models.resnet import _ResNetS, ResNetS
 
