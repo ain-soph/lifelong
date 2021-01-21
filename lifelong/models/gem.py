@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 from .split_model import SplitModel
 from trojanzoo.utils.data import dataset_to_list, sample_batch
@@ -25,7 +24,7 @@ class GEM(SplitModel):
     def add_argument(cls, group: argparse._ArgumentGroup):
         super().add_argument(group)
         group.add_argument('--memory_size', dest='memory_size', type=int)
-        group.add_argument('--memory_method', dest='memory_method', default='random')
+        group.add_argument('--memory_method', dest='memory_method')
 
     def __init__(self, *args, memory_size: int = 256, memory_method: str = 'random', **kwargs):
         super().__init__(*args, **kwargs)

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 from .split_dataset import SplitDataset
 from trojanvision.datasets import CIFAR100

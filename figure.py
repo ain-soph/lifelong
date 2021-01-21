@@ -26,4 +26,4 @@ if __name__ == '__main__':
             df = pd.read_csv(f'./result/{method} {mode}.csv', usecols=['Step', 'Value'])
             fig.curve(df['Step'], df['Value'], color=color_list[j], label=method)
         fig.set_legend()
-    fig.save(folder_path='./result/', ext='.pdf')
+        fig.save(folder_path='./result/', ext='.pdf')
