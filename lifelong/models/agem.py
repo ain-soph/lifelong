@@ -33,17 +33,6 @@ class AGEM(GEM):
     #                      for _class in class_list])
     #     return sample_batch(dataset, idx=idx)
 
-    def after_loss_fn(self, optimizer: torch.optim.Optimizer,
-                      _iter: int = None, total_iter: int = None, **kwargs):
-        # self.lr_decay_fn(optimizer=optimizer, _iter=_iter, total_iter=total_iter)
-        if not hasattr(self, 'params'):
-            self.params: list[torch.nn.Parameter] = [param for param in self.parameters() if param.requires_grad]
-            self.grad_dims: list[int] = [param.data.numel() for param in self.params]
-        if self.current_task > 0:
-            current_grad, prev_grad = self.store_grad()
-            grad = self.project2cone2(current_grad, prev_grad)
-            self.rewrite_grad(grad)
-
     def store_grad(self) -> tuple[torch.Tensor, torch.Tensor]:
         current_grad = torch.cat([param.grad.flatten() for param in self.params])
         self.zero_grad()

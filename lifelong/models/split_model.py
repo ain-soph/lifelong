@@ -5,6 +5,7 @@ from trojanzoo.utils.logger import SmoothedValue
 from trojanzoo.utils.output import prints, ansi
 
 import torch
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
@@ -31,6 +32,8 @@ class SplitModel(ImageModel):
         self.label_to_task = torch.tensor([label_to_task[label] for label in range(self.num_classes)])
         self.label_to_idx = torch.tensor(
             [sorted(self.dataset.class_order_list[self.label_to_task[label]]).index(label) for label in range(self.num_classes)])
+        self.params: list[list[nn.Parameter]] = []
+        self.param_numels: list[int] = []
 
     def loss(self, _input: torch.Tensor = None, _label: torch.Tensor = None,
              _output: torch.Tensor = None, **kwargs) -> torch.Tensor:
@@ -58,6 +61,8 @@ class SplitModel(ImageModel):
                verbose: bool = True, indent: int = 0,
                adv_train: bool = False, adv_train_alpha: float = 2.0 / 255, adv_train_epsilon: float = 8.0 / 255,
                adv_train_iter: int = 7, **kwargs):
+        self.params = optimizer.param_groups[0]['params']
+        self.param_numels = [param.data.numel() for param in self.params]
         if after_task_fn is None and hasattr(self, 'after_task_fn'):
             after_task_fn = getattr(self, 'after_task_fn')
         if loader_train is None:

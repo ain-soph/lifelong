@@ -193,9 +193,6 @@ class GEM(SplitModel):
     def after_loss_fn(self, optimizer: torch.optim.Optimizer,
                       _iter: int = None, total_iter: int = None, **kwargs):
         # self.lr_decay_fn(optimizer=optimizer, _iter=_iter, total_iter=total_iter)
-        if not hasattr(self, 'params'):
-            self.params: list[torch.nn.Parameter] = [param for param in self.parameters() if param.requires_grad]
-            self.grad_dims: list[int] = [param.data.numel() for param in self.params]
         if self.current_task > 0:
             current_grad, prev_grad = self.store_grad()
             grad = self.project2cone2(current_grad, prev_grad)
@@ -212,7 +209,7 @@ class GEM(SplitModel):
             param_group['lr'] = lr
 
     def rewrite_grad(self, grad: torch.Tensor):
-        split_grads: tuple[torch.Tensor] = torch.split(grad, self.grad_dims)
+        split_grads: tuple[torch.Tensor] = torch.split(grad, self.param_numels)
         for param, split_grad in zip(self.params, split_grads):
             param.grad.data.copy_(split_grad.to(param.device).view_as(param))
 
