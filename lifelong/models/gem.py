@@ -37,10 +37,28 @@ class GEM(SplitModel):
         self.memory_hess: list[torch.Tensor] = []
 
     def after_task_fn(self, task_id: int):
+        if self.memory_method == 'influence':
+            return
         dataset = self.dataset.loader['train'][task_id].dataset
         data, targets = self.sample_batch(dataset, batch_size=self.memory_size)
         self.memory_data.append(torch.stack(data).pin_memory())
         self.memory_targets.append(torch.tensor(targets, dtype=torch.long).pin_memory())
+
+    def epoch_fn(self, optimizer: torch.optim.Optimizer, _epoch: int = None, epoch: int = None,
+                 start_epoch: int = None, **kwargs):
+        if self.memory_method != 'influence' or _epoch != 2:
+            return
+        task_id = self.current_task
+        dataset = self.dataset.loader['train'][task_id].dataset
+        data, targets = self.sample_batch(dataset, batch_size=self.memory_size)
+        self.memory_data.append(torch.stack(data).pin_memory())
+        self.memory_targets.append(torch.tensor(targets, dtype=torch.long).pin_memory())
+        # if not hasattr(self, 'optimizer'):
+        #     self.base_lr: float = optimizer.param_groups[0]['lr']
+        #     self.optimizer = optimizer
+        # lr = self.base_lr * (1 - (_epoch + start_epoch) / (epoch * self.dataset.split_num))
+        # for param_group in self.optimizer.param_groups:
+        #     param_group['lr'] = lr
 
     def sample_batch(self, dataset: torch.utils.data.Dataset, batch_size: int,
                      memory_method: str = None) -> tuple[list, list[int]]:
@@ -133,7 +151,7 @@ class GEM(SplitModel):
         return sample_batch(dataset, idx=idx)
 
     def sample_batch_influence(self, dataset: torch.utils.data.Dataset, batch_size: int,
-                               orthogonal: bool = True) -> tuple[list, list[int]]:
+                               orthogonal: bool = False) -> tuple[list, list[int]]:
         assert len(dataset) >= batch_size
         loader = self.dataset.get_dataloader(dataset=dataset, shuffle=False)
         hess_inv = torch.cholesky_inverse(self.influence.calc_H(loader))
@@ -148,7 +166,7 @@ class GEM(SplitModel):
                                                    device=memory_bases.device)  # (0, D)
                 memory_metric = hess_inv @ memory_bases.t() @ memory_bases  # (D,D)
                 for data in loader:
-                    _input, _label = self.get_data(data)
+                    _input, _label = self.get_data(data, adv=True)
                     v = self.influence.calc_v(_input, _label)   # (N, D)
                     v -= v @ memory_metric   # (N, D)
                     v_list = torch.cat([v_list, v])
@@ -165,21 +183,12 @@ class GEM(SplitModel):
         else:
             influence_list: list[float] = []
             for data in loader:
-                _input, _label = self.get_data(data)
+                _input, _label = self.get_data(data, adv=True)
                 influence_list.extend(self.influence.up_loss(_input, _label, hess_inv=hess_inv))
             idx = list(range(len(dataset)))
             _, idx = zip(*sorted(zip(influence_list, idx)))
             idx = list(idx)[-batch_size:]
         return sample_batch(dataset, idx=idx)
-
-    # def epoch_func(self, optimizer: torch.optim.Optimizer, _epoch: int = None, epoch: int = None,
-    #                start_epoch: int = None, **kwargs):
-    #     if not hasattr(self, 'optimizer'):
-    #         self.base_lr: float = optimizer.param_groups[0]['lr']
-    #         self.optimizer = optimizer
-    #     lr = self.base_lr * (1 - (_epoch + start_epoch) / (epoch * self.dataset.split_num))
-    #     for param_group in self.optimizer.param_groups:
-    #         param_group['lr'] = lr
 
     def after_loss_fn(self, optimizer: torch.optim.Optimizer,
                       _iter: int = None, total_iter: int = None, **kwargs):
