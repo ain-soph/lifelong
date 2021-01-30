@@ -30,8 +30,8 @@ class LifelongDataset(Dataset):
             return dataset
         return super().get_dataset(dataset=dataset, classes=self.class_order_list[task_id])
 
-    def get_dataset_dict(self) -> dict[str, list[torch.utils.data.Dataset]]:
-        dataset_dict = self.get_dataset_dict_fn()
+    def get_dataset_dict(self, **kwargs) -> dict[str, list[torch.utils.data.Dataset]]:
+        dataset_dict = self.get_dataset_dict_fn(**kwargs)
         if self.shuffle_tasks:
             dataset_dict = {
                 'train': [dataset_dict['train'][i] for i in self.task_idx],
@@ -39,5 +39,5 @@ class LifelongDataset(Dataset):
             }
         return dataset_dict
 
-    def get_dataset_dict_fn(self) -> dict[str, list[torch.utils.data.Dataset]]:
+    def get_dataset_dict_fn(self, **kwargs) -> dict[str, list[torch.utils.data.Dataset]]:
         pass
