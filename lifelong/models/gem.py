@@ -56,7 +56,7 @@ class GEM(SplitModel):
         # if not hasattr(self, 'optimizer'):
         #     self.base_lr: float = optimizer.param_groups[0]['lr']
         #     self.optimizer = optimizer
-        # lr = self.base_lr * (1 - (_epoch + start_epoch) / (epoch * self.dataset.split_num))
+        # lr = self.base_lr * (1 - (_epoch + start_epoch) / (epoch * self.dataset.task_num))
         # for param_group in self.optimizer.param_groups:
         #     param_group['lr'] = lr
 
@@ -98,7 +98,7 @@ class GEM(SplitModel):
     def sample_batch_cluster(self, dataset: torch.utils.data.Dataset, batch_size: int) -> tuple[list, list[int]]:
         _, targets = dataset_to_list(dataset, label_only=True)  # list[int]
         _labels = torch.tensor(targets, device=env['device'])
-        num_clusters = len(set(targets)) * 2
+        num_clusters = batch_size
         loader = self.dataset.get_dataloader(dataset=dataset, shuffle=False)
         feats: list[torch.Tensor] = []
         for data in loader:
@@ -151,40 +151,31 @@ class GEM(SplitModel):
         return sample_batch(dataset, idx=idx)
 
     def sample_batch_influence(self, dataset: torch.utils.data.Dataset, batch_size: int,
-                               orthogonal: bool = False) -> tuple[list, list[int]]:
+                               orthogonal: bool = True) -> tuple[list, list[int]]:
         assert len(dataset) >= batch_size
         loader = self.dataset.get_dataloader(dataset=dataset, shuffle=False)
         hess_inv = torch.cholesky_inverse(self.influence.calc_H(loader))
         self.memory_hess.append(hess_inv.detach().cpu())
         idx: list[int] = []
+
+        v_list: torch.Tensor = torch.zeros(0, self.influence.parameter.numel(),
+                                           device=env['device'])  # (0, D)
+        for data in loader:
+            _input, _label = self.get_data(data)
+            v = self.influence.calc_v(_input, _label)   # (N, D)
+            v_list = torch.cat([v_list, v])
+        avg_v = v_list.mean(0)
         if orthogonal:
             memory_bases: torch.Tensor = torch.zeros(0, self.influence.parameter.numel(),
                                                      device=env['device'])  # (M, D)
             for _ in range(batch_size):
-                influence_list: list[float] = []
-                v_list: torch.Tensor = torch.zeros(0, memory_bases.shape[1],
-                                                   device=memory_bases.device)  # (0, D)
-                memory_metric = hess_inv @ memory_bases.t() @ memory_bases  # (D,D)
-                for data in loader:
-                    _input, _label = self.get_data(data, adv=True)
-                    v = self.influence.calc_v(_input, _label)   # (N, D)
-                    v -= v @ memory_metric   # (N, D)
-                    v_list = torch.cat([v_list, v])
-                    influence_list.extend(self.influence.up_loss(v=v, hess_inv=hess_inv))
-                    # Gram–Schmidt orthogonalization
-                    # for j in range(len(v)):
-                    #     for i in range(len(memory_bases)):
-                    #         v[j] -= v[j] @ memory_bases[i] * memory_bases[i]
-                    # # v -= v @ memory_bases.t() @ memory_bases
-                    # memory_bases are already normalized
+                proj_v_list = v_list - v_list @ hess_inv @ memory_bases.t() @ memory_bases   # (N, D)
+                influence_list = self.influence.up_loss(v=proj_v_list, hess_inv=hess_inv, v_test=avg_v)
                 best_idx = int(np.argmax(influence_list))
                 memory_bases = torch.cat([memory_bases, v_list[best_idx].unsqueeze(0) / influence_list[best_idx]])
                 idx.append(best_idx)
         else:
-            influence_list: list[float] = []
-            for data in loader:
-                _input, _label = self.get_data(data, adv=True)
-                influence_list.extend(self.influence.up_loss(_input, _label, hess_inv=hess_inv))
+            influence_list = self.influence.up_loss(v=v_list, hess_inv=hess_inv, v_test=avg_v)
             idx = list(range(len(dataset)))
             _, idx = zip(*sorted(zip(influence_list, idx)))
             idx = list(idx)[-batch_size:]
@@ -204,7 +195,7 @@ class GEM(SplitModel):
         if not hasattr(self, 'optimizer'):
             self.base_lr: float = optimizer.param_groups[0]['lr']
             self.optimizer = optimizer
-        lr = self.base_lr * (1 - (_iter + self.current_task * total_iter) / (self.dataset.split_num * total_iter))
+        lr = self.base_lr * (1 - (_iter + self.current_task * total_iter) / (self.dataset.task_num * total_iter))
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
 
