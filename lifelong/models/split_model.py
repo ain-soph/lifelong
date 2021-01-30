@@ -23,8 +23,8 @@ class SplitModel(ImageModel):
         super().__init__(*args, **kwargs)
         self.dataset: SplitDataset
         self.current_task: int = 0
-        self.task_mask = torch.zeros(self.dataset.split_num, self.num_classes, dtype=torch.bool)
-        for task_id in range(self.dataset.split_num):
+        self.task_mask = torch.zeros(self.dataset.task_num, self.num_classes, dtype=torch.bool)
+        for task_id in range(self.dataset.task_num):
             self.task_mask[task_id][torch.tensor(self.dataset.class_order_list[task_id])] = True
         label_to_task: dict[int, int] = {
             label: task for task, label_list in enumerate(self.dataset.class_order_list)
@@ -67,7 +67,7 @@ class SplitModel(ImageModel):
             after_task_fn = getattr(self, 'after_task_fn')
         if loader_train is None:
             loader_train = self.dataset.loader['train']
-        for task_id in range(self.dataset.split_num):
+        for task_id in range(self.dataset.task_num):
             self.current_task = task_id
             prints('{green}task{reset}: {0:d}'.format(task_id, **ansi), indent=indent)
 
