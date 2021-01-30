@@ -21,11 +21,14 @@ class ICARL(SplitModel):
     def add_argument(cls, group: argparse._ArgumentGroup):
         super().add_argument(group)
 
-    def __init__(self, *args, lambd: float = 10, sample_num: int = 64, **kwargs):
+    def __init__(self, *args,  **kwargs):
         super().__init__(*args, **kwargs)
-        self.param_list['ewc'] = ['lambd', 'sample_num']
-        self.lambd = lambd
-        self.sample_num = sample_num
+        self.param_list['icarl'] = []
+        self.criterion = pass
 
-    def update_representation(self):
+    def after_task_fn(self, task_id: int):
+        
+        # reduce exemplar set
+        # only keep top m
         pass
+
