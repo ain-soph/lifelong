@@ -39,12 +39,19 @@ class SplitModel(ImageModel):
              _output: torch.Tensor = None, **kwargs) -> torch.Tensor:
         if _output is None:
             _output = self(_input, **kwargs)
-        _task = self.label_to_task[_label]
-        _mask = self.task_mask[_task]
-        _output[~_mask] = -1e10
-        _output = _output[_mask].view(len(_input), -1)
-        _label = self.label_to_idx[_label].to(device=_label.device)
+        _output, _label = self.prune_output_and_label(_output, _label)
         return super().loss(_input=_input, _label=_label, _output=_output, **kwargs)
+
+    # TODO
+    def prune_output_and_label(self, _output: torch.Tensor, _label: torch.Tensor,
+                               _task: torch.Tensor = None, _mask: torch.Tensor = None) -> tuple[torch.Tensor, torch.Tensor]:
+        if _mask is None:
+            _task = _task if _task is not None else self.label_to_task[_label]  # (N)
+            _mask = self.task_mask[_task]   # (N, num_classes)
+        _output[~_mask] = -1e10
+        _output = _output[_mask].view(len(_label), -1)  # (N, task_num_classes) flatten and then view back
+        _label = self.label_to_idx[_label].to(device=_label.device)  # (N) 0--task_num_classes
+        return _output, _label
 
     def _train(self, epoch: int, optimizer: Optimizer, lr_scheduler: _LRScheduler = None,
                loader_train: list[torch.utils.data.DataLoader] = None, loader_valid: list[torch.utils.data.DataLoader] = None,
