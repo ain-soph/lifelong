@@ -13,11 +13,11 @@ import torch.utils.data
 class PermutedDataset(LifelongDataset, ImageSet):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    def get_dataset_dict_fn(self) -> dict[str, list[torch.utils.data.Dataset]]:
         torch.manual_seed(env['seed'])  # TODO
         numel = self.data_shape[0] * self.data_shape[1] * self.data_shape[2]
         self.permuted_idx: list[torch.Tensor] = [torch.randperm(numel)]
-
-    def get_dataset_dict_fn(self) -> dict[str, list[torch.utils.data.Dataset]]:
         dataset = {
             'train': self.get_dataset(mode='train'),
             'valid': self.get_dataset(mode='valid'),
