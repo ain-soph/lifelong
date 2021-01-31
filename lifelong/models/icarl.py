@@ -65,7 +65,7 @@ class ICARL(SplitModel):
             rest_ids = list(range(featmaps.shape[0]))
             found_fm: torch.Tensor = 0.0
             while len(found_ids<split_mem_size):
-                _ids = self.dist_calc(mean_fm, featmaps[rest_ids], found_fm)
+                _ids = self.dist_calc(mean_fm, featmaps[rest_ids], found_fm, len(found_ids)+1)
                 found_ids.append(_ids)
                 rest_ids = list(set(rest_ids) - set(found_ids))
                 found_fm += featmaps[_ids]
@@ -77,6 +77,6 @@ class ICARL(SplitModel):
         _input, _label = dataset_to_list(dataset)
         return torch.stack(_input)[torch.tensor(_label)==target_label]
 
-    def dist_calc(self, mean_fn: torch.Tensor, fms: torch.Tensor, found_fm: torch.Tensor):
-        # calculate all distances and find nearest one, return its index
-        pass
+    def dist_calc(self, mean_fn: torch.Tensor, fms: torch.Tensor, found_fm: torch.Tensor, k: int):
+        fms = (fms + found_fm)/k  # (N', D) + (1, D) = (N', D)
+        return torch.argmin(torch.cdist(fms, mean_fn, p=2)).item()
