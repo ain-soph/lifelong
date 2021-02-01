@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 
 from .split_model import SplitModel
-from .wgan_gp import *
+from .dgr_wgan_gp import Critic, Generator
 from trojanzoo.utils.data import dataset_to_list, sample_batch
 from trojanzoo.environ import env
 from trojanzoo.utils.influence import InfluenceFunction
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from typing import TYPE_CHECKING
 import argparse    # TODO: python 3.10
 if TYPE_CHECKING:
