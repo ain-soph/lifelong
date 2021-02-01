@@ -5,6 +5,7 @@ from trojanplot import *
 import numpy as np
 import pandas as pd
 import os
+import glob
 from matplotlib import pyplot as plt
 
 import warnings
@@ -12,7 +13,8 @@ warnings.filterwarnings("ignore")
 
 if __name__ == '__main__':
     _fig = plt.figure(figsize=[10, 2.5])
-    color_list = [google_color['red'], google_color['blue'], google_color['yellow'], google_color['green']]
+    color_list = [google_color['red'], google_color['blue'], google_color['yellow'], google_color['green'],
+                  ting_color['purple']]
     for i, mode in enumerate(['clean', 'robust']):
         _ax = _fig.add_subplot(1, 2, i + 1)
         fig = Figure(mode, fig=_fig, ax=_ax)
@@ -27,17 +29,21 @@ if __name__ == '__main__':
             fig.set_axis_lim('y', lim=[0, 50], piece=5, margin=[0.0, 2.0],
                              _format='%d')
         fig.set_title()
-        for j, eps in enumerate([2, 4, 6]):
-            fname = f'./result/eps{eps}_{mode}.csv'
-            x = np.arange(160) + 1
-            y = np.random.random(160) * 4
-            if os.path.exists(fname):
+        for j, eps in enumerate([0, 2, 4, 6, 8]):
+            fname_list = glob.glob(f'./result/eps/eps{eps}_{mode}*.csv')
+            x_list = []
+            y_list = []
+            for fname in fname_list:
                 df = pd.read_csv(fname, usecols=['Step', 'Value'])
-                x = df['Step']
-                y = df['Value']
-            y = fig.avg_smooth(y, window=20)
-            y = fig.avg_smooth(y, window=10)
-            fig.curve(x, y, color=color_list[j], label=f'eps {eps}')
+                x: np.ndarray = df['Step']
+                y: np.ndarray = df['Value']
+                # y = fig.avg_smooth(y, window=20)
+                # y = fig.avg_smooth(y, window=10)
+                x_list.append(x)
+                y_list.append(y)
+            x_list = np.concatenate(x_list)
+            y_list = np.concatenate(y_list)
+            fig.curve(x_list, y_list, color=color_list[j], label=f'eps {eps}')
         if mode == 'clean':
             fig.set_legend()
         else:
