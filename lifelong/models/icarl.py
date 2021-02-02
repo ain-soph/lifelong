@@ -49,11 +49,6 @@ class ICARL(SplitModel):
         split_mem_size = self.memory_size / self.past_labels
         
         # reduce sample number for past tasks
-        # [class_id], (split_mem_size, C, H, W)
-        for i in range(task_id):    # TODO
-            for j in self.dataset.class_order_list[i]:
-                self.memory_data[j] = self.memory_data[j][:split_mem_size]
-                self.memory_targets[j] = self.memory_targets[j][:split_mem_size]
 
         for i in range(len(self.memory_data)):
             self.memory_data[i] = self.memory_data[i][:split_mem_size]
@@ -63,34 +58,25 @@ class ICARL(SplitModel):
 
         for y in labelset:
             inputs = self.get_data_by_label(self.dataset.loader['train'][task_id], y)
-            y_feats: torch.Tensor = self.get_final_fm(inputs)  # (N, D)
-            mean_fm: torch.Tensor = torch.mean(y_feats, dim=0) # (1, D)
+            featmaps: torch.Tensor = self.get_final_fm(inputs)  # (N, D)
+            mean_fm: torch.Tensor = torch.mean(featmaps, dim=0) # (1, D)
 
             found_ids = []
-            rest_ids = list(range(y_feats.shape[0]))
-            id_list = torch.arange(len(rest_ids))
-            found_fm_sum: torch.Tensor = torch.zeros(y_feats.shape[1], device=y_feats.device)
-            if len(rest_ids) <= split_mem_size:
-                found_ids = rest_ids
-            else:
-                while len(found_ids < split_mem_size):
-                    fms = (y_feats[rest_ids] + found_fm_sum) / (len(found_ids) + 1)  # (N-found, D)
-                    _id = int(torch.cdist(fms, mean_fm, p=2).argmin())
-                    org_id = int(id_list[_id])
-                    found_ids.append(org_id)
-                    rest_ids = list(set(rest_ids) - {org_id})
-                    found_fm_sum += y_feats[org_id]
-                    id_list[org_id:] += 1
-            self.memory_data[self.label_to_task[y]].append(y_input[found_ids])  # TODO
-            self.memory_targets.append([found_ids] * y)
+            rest_ids = list(range(featmaps.shape[0]))
+            found_fm: torch.Tensor = 0.0
+            while len(found_ids<split_mem_size):
+                _ids = self.dist_calc(mean_fm, featmaps[rest_ids], found_fm, len(found_ids)+1)
+                found_ids.append(_ids)
+                rest_ids = list(set(rest_ids) - set(found_ids))
+                found_fm += featmaps[_ids]
+            self.memory_data.append(featmaps[found_ids])
+            self.memory_targets.append(torch.stack([y]*len(found_ids)))
 
-        # Calculate q
-        for data in self.dataset.loader['train'][self.current_task + 1]:
-            _input, _label = self.get_data(data)
-            idx = self.indices
-            self.q[idx] = F.sigmoid(self(_input)).to(self.q.device)
+    def get_data_by_label(self, loader: torch.utils.data.DataLoader, target_label: int):
+        dataset = loader.dataset
+        _input, _label = dataset_to_list(dataset)
+        return torch.stack(_input)[torch.tensor(_label)==target_label]
 
-        # update loader # TODO
-        if self.current_task < self.dataset.task_num - 1:
-            org_dataset = self.dataset.loader['train'][self.current_task + 1].dataset
-            self.memory_data
+    def dist_calc(self, mean_fn: torch.Tensor, fms: torch.Tensor, found_fm: torch.Tensor, k: int):
+        fms = (fms + found_fm)/k  # (N', D) + (1, D) = (N', D)
+        return torch.argmin(torch.cdist(fms, mean_fn, p=2)).item()
