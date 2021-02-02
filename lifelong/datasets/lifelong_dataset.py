@@ -4,7 +4,6 @@ from trojanzoo.environ import env
 
 import torch
 import torch.utils.data
-import numpy as np
 
 
 class LifelongDataset(Dataset):

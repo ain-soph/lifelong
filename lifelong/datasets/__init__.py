@@ -6,12 +6,15 @@ from .permuted_dataset import PermutedDataset
 
 from .permuted_mnist import PermutedMNIST
 from .split_cifar100 import SplitCIFAR100
+from .split_cub200 import SplitCUB200, SplitCUB200_2011
 
 import trojanvision.datasets
 
 class_dict: dict[str, LifelongDataset] = {
     'permuted_mnist': PermutedMNIST,
     'split_cifar100': SplitCIFAR100,
+    'split_cub200': SplitCUB200,
+    'split_cub200_2011': SplitCUB200_2011,
 }
 
 

@@ -80,7 +80,7 @@ class ICARL(SplitModel):
 
         # reduce sample number for past tasks
         # [class_id], (split_mem_size, C, H, W)
-        for i in range(task_id):
+        for i in range(task_id):    # TODO
             for j in self.dataset.class_order_list[i]:
                 self.memory_data[j] = self.memory_data[j][:split_mem_size]
                 self.memory_targets[j] = self.memory_targets[j][:split_mem_size]
@@ -108,7 +108,7 @@ class ICARL(SplitModel):
                     rest_ids = list(set(rest_ids) - {org_id})
                     found_fm_sum += y_feats[org_id]
                     id_list[org_id:] += 1
-            self.memory_data[self.label_to_task[y]].append(y_input[found_ids])
+            self.memory_data[self.label_to_task[y]].append(y_input[found_ids])  # TODO
             self.memory_targets.append([found_ids] * y)
 
         # Calculate q
@@ -117,7 +117,7 @@ class ICARL(SplitModel):
             idx = self.indices
             self.q[idx] = F.sigmoid(self(_input)).to(self.q.device)
 
-        # update loader
+        # update loader # TODO
         if self.current_task < self.dataset.task_num - 1:
             org_dataset = self.dataset.loader['train'][self.current_task + 1].dataset
             self.memory_data
