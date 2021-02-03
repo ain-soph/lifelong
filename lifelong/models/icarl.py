@@ -39,7 +39,7 @@ class ICARL(SplitModel):
                 data, targets = dataset_to_list(loader.dataset)
                 indices = [_id + ind_offset for _id in range(len(targets))]
                 ind_offset += len(targets)
-                dataset = IndexDataset(indices, data, targets)  # TODO
+                dataset = IndexDataset(indices, torch.stack(data), targets)  
                 self.dataset.loader[mode][i] = self.dataset.get_dataloader(mode=mode, dataset=dataset)
         self.indices: torch.Tensor = []    # temp variable
         self.q: torch.Tensor = torch.zeros(len(self.dataset.get_full_dataset('train')), self.num_classes)
@@ -58,13 +58,14 @@ class ICARL(SplitModel):
         if _output is None:
             _output = self(_input, **kwargs)
         _task = torch.full([_label.shape[0]], self.current_task)
-        current_output, task_label = self.prune_output_and_label(_output, _label, _task=_task)
+        current_output, task_label = self.prune_output_and_label(_output, _label, _task=_task if self._model.training else None)
         task_num_classes = current_output.shape[1]
         _onehot_label = onehot_label(task_label, task_num_classes).to(current_output.dtype)
         _onehot_label[~np.isin(_label.detach().cpu(), self.dataset.class_order_list[self.current_task])] = 0
         loss = self.criterion(current_output, _onehot_label)
         
-        if self.current_task > 0:
+        if self.current_task > 0 and self._model.training:
+            _output = self(_input, **kwargs)
             _mask = torch.zeros(self.num_classes).bool()
             for task_id in range(self.current_task):
                 _mask |= self.task_mask[task_id]  # (num_classes)
@@ -81,7 +82,7 @@ class ICARL(SplitModel):
         indices, data, targets = cur_dataset.indices, cur_dataset.data, cur_dataset.targets
         labelset = set(targets)
         self.past_labels += len(labelset)
-        split_mem_size = self.memory_size / self.past_labels
+        split_mem_size = self.memory_size // self.past_labels
 
         # reduce sample number for past tasks
         # {class_id: (split_mem_size, C, H, W)}
@@ -93,16 +94,16 @@ class ICARL(SplitModel):
         # add samples for current task
         for y in labelset:
             _loc: list[bool] = (torch.tensor(targets) == y).tolist()
-            y_indices: list[int] = np.array(indices)[_loc].tolist()
-            y_input = torch.stack(data)[_loc]
+            y_indices: list[int] = np.array(indices)[_loc]
+            y_input = data[_loc]
             y_feats = self.get_final_fm(y_input.to(env['device']))  # (N, D)    # TODO: iterative loader
             y_feats: torch.Tensor = y_feats / y_feats.norm(dim=1, keepdim=True)  # Normalize
             mean_fm = y_feats.mean(dim=0, keepdim=True)  # (1, D)
             mean_fm: torch.Tensor = mean_fm / mean_fm.norm(dim=1, keepdim=True)  # Normalize
 
             found_ids = []
-            rest_ids = list(range(y_feats.shape[0]))
-            id_list = torch.arange(len(rest_ids))
+            rest_ids = torch.arange(y_feats.shape[0]).tolist()
+            id_list = torch.arange(len(rest_ids)).tolist()
             found_fm_sum: torch.Tensor = torch.zeros(y_feats.shape[1], device=y_feats.device)
             if len(rest_ids) <= split_mem_size:
                 found_ids = rest_ids
@@ -113,27 +114,30 @@ class ICARL(SplitModel):
                     org_id = int(id_list[_id])
                     found_ids.append(org_id)
                     rest_ids = list(set(rest_ids) - {org_id})
-                    found_fm_sum += y_feats[org_id]
-                    id_list[org_id:] += 1
+                    found_fm_sum += y_feats[_id]
+                    id_list.pop(_id)
             self.memory_indices[y] = y_indices[found_ids]
             self.memory_data[y] = y_input[found_ids]  
             self.memory_targets[y] = [y] * len(found_ids)
+
+        # update loader
+        if self.current_task < self.dataset.task_num - 1:
+            org_dataset: IndexDataset = self.dataset.loader['train'][self.current_task + 1].dataset
+            org_indices, org_data, org_targets = org_dataset.indices, org_dataset.data, org_dataset.targets
+            mem_indices, mem_data, mem_targets = [], [], []
+            for class_id in self.memory_data.keys():
+                mem_indices.extend(self.memory_indices[class_id])
+                mem_data.append(self.memory_data[class_id])
+                mem_targets.extend(self.memory_targets[class_id])
+            mem_data = torch.cat(mem_data)
+            all_indices = org_indices + mem_indices
+            all_data = torch.cat((org_data, mem_data))
+            all_targets = org_targets + mem_targets
+            all_dataset = IndexDataset(all_indices, all_data, all_targets)
+            self.dataset.loader['train'][self.current_task + 1] = self.dataset.get_dataloader(mode='train', dataset=all_dataset)
 
         # Calculate q
         for data in self.dataset.loader['train'][self.current_task + 1]:
             _input, _label = self.get_data(data)
             idx = self.indices
             self.q[idx] = F.sigmoid(self(_input)).to(self.q.device)
-
-        # update loader
-        if self.current_task < self.dataset.task_num - 1:
-            org_dataset = self.dataset.loader['train'][self.current_task + 1].dataset
-            mem_indices, mem_data, mem_targets = [], [], []
-            for class_id in range(self.memory_data.keys()):
-                mem_indices.extend(self.memory_indices[class_id])
-                mem_data.append(self.memory_data[class_id])
-                mem_targets.extend(self.memory_targets[class_id])
-            mem_data = torch.cat(mem_data)
-            mem_dataset = IndexDataset(mem_indices, mem_data, mem_targets)
-            all_dataset = torch.utils.data.ConcatDataset([org_dataset, mem_dataset])
-            self.dataset.loader['train'][self.current_task + 1] = self.dataset.get_dataloader(all_dataset) 
