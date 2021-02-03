@@ -28,14 +28,18 @@ class ICARL(SplitModel):
         super().__init__(*args, **kwargs)
         self.param_list['icarl'] = []
         self.memory_size = memory_size
-        self.memory_data: list[torch.Tensor] = [torch.empty(self.memory_size, self.dataset.data_shape)]  # TODO
-        self.memory_targets: list[torch.Tensor] = []  # TODO
+        self.memory_indices: dict[int, list[int]] = {}
+        self.memory_data: dict[int, torch.Tensor] = {} 
+        self.memory_targets: dict[int, list[int]] = {}  
         self.past_labels: int = 0
 
-        for mode, loader_list in self.dataset.loader.items():
+        for mode, loader_list in self.dataset.loader.items(): # train/valid
+            ind_offset = 0
             for i, loader in enumerate(loader_list):
                 data, targets = dataset_to_list(loader.dataset)
-                dataset = IndexDataset(data, targets)
+                indices = [_id + ind_offset for _id in range(len(targets))]
+                ind_offset += len(targets)
+                dataset = IndexDataset(indices, data, targets)  # TODO
                 self.dataset.loader[mode][i] = self.dataset.get_dataloader(mode=mode, dataset=dataset)
         self.indices: torch.Tensor = []    # temp variable
         self.q: torch.Tensor = torch.zeros(len(self.dataset.get_full_dataset('train')), self.num_classes)
@@ -73,20 +77,23 @@ class ICARL(SplitModel):
 
     def after_task_fn(self, task_id: int):
         # count label numbers for current task
-        data, targets = dataset_to_list(self.dataset.loader['train'][task_id].dataset)
+        indices, data, targets = dataset_to_list(self.dataset.loader['train'][task_id].dataset)
         labelset = set(targets)
         self.past_labels += len(labelset)
         split_mem_size = self.memory_size / self.past_labels
 
         # reduce sample number for past tasks
-        # [class_id], (split_mem_size, C, H, W)
-        for i in range(task_id):    # TODO
-            self.memory_data[i] = self.memory_data[i][:split_mem_size]
-            self.memory_targets[i] = self.memory_targets[i][:split_mem_size]
+        # {class_id: (split_mem_size, C, H, W)}
+        for class_id in self.memory_data.keys():    # TODO
+            self.memory_indices[class_id] = self.memory_indices[class_id][:split_mem_size]
+            self.memory_data[class_id] = self.memory_data[class_id][:split_mem_size]
+            self.memory_targets[class_id] = self.memory_targets[class_id][:split_mem_size]
 
         # add samples for current task
         for y in labelset:
-            y_input = torch.stack(data)[torch.tensor(targets) == y]
+            _loc = [torch.tensor(targets) == y]
+            y_indices = torch.stack(indices)[_loc].tolist()
+            y_input = torch.stack(data)[_loc]
             y_feats = self.get_final_fm(y_input.to(env['device']))  # (N, D)    # TODO: iterative loader
             y_feats: torch.Tensor = y_feats / y_feats.norm(dim=1, keepdim=True)  # Normalize
             mean_fm = y_feats.mean(dim=0, keepdim=True)  # (1, D)
@@ -107,8 +114,9 @@ class ICARL(SplitModel):
                     rest_ids = list(set(rest_ids) - {org_id})
                     found_fm_sum += y_feats[org_id]
                     id_list[org_id:] += 1
-            self.memory_data[y].append(y_input[found_ids])  # TODO
-            self.memory_targets.append(torch.as_tensor([found_ids] * y))
+            self.memory_indices[y] = y_indices[found_ids]
+            self.memory_data[y] = y_input[found_ids]  
+            self.memory_targets[y] = [y] * len(found_ids)
 
         # Calculate q
         for data in self.dataset.loader['train'][self.current_task + 1]:
@@ -116,11 +124,14 @@ class ICARL(SplitModel):
             idx = self.indices
             self.q[idx] = F.sigmoid(self(_input)).to(self.q.device)
 
-        # update loader # TODO
+        # update loader
         if self.current_task < self.dataset.task_num - 1:
             org_dataset = self.dataset.loader['train'][self.current_task + 1].dataset
-            org_inputs, org_labels = dataset_to_list(org_dataset)
-            mem_inputs = torch.stack(self.memory_data).tolist()
-            mem_labels = torch.tensor(l).flatten().tolist()
-            all_dataset = self.dataset.get_dataset(org_inputs+mem_inputs, org_labels+mem_labels)
-            self.data.loader['train'][self.current_task + 1] = self.dataset.get_dataloader(all_dataset) 
+            mem_indices, mem_data, mem_targets = [], [], []
+            for class_id in range(self.memory_data.keys()):
+                mem_indices.append(self.memory_indices[class_id])
+                mem_data.append(self.memory_data[class_id])
+                mem_targets.append(self.memory_targets[class_id])
+            mem_dataset = IndexDataset(mem_indices, mem_data, mem_targets)
+            all_dataset = torch.utils.data.ConcatDataset([org_dataset, mem_dataset])
+            self.dataset.loader['train'][self.current_task + 1] = self.dataset.get_dataloader(all_dataset) 
