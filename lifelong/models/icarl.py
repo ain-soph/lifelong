@@ -134,11 +134,11 @@ class ICARL(SplitModel):
             all_data = torch.cat((org_data, mem_data))
             all_targets = org_targets + mem_targets
             all_dataset = IndexDataset(all_indices, all_data, all_targets)
-            self.dataset.loader['train'][self.current_task +
-                                         1] = self.dataset.get_dataloader(mode='train', dataset=all_dataset)
+            self.dataset.loader['train'][self.current_task + 1] = self.dataset.get_dataloader(mode='train', dataset=all_dataset)
 
         # Calculate q
-        for data in self.dataset.loader['train'][self.current_task + 1]:
-            _input, _label = self.get_data(data)
-            idx = self.indices
-            self.q[idx] = F.sigmoid(self(_input)).to(self.q.device)
+        if self.current_task+1 < len(self.self.dataset.loader['train']):
+            for data in self.dataset.loader['train'][self.current_task + 1]:
+                _input, _label = self.get_data(data)
+                idx = self.indices
+                self.q[idx] = F.sigmoid(self(_input)).to(self.q.device)
