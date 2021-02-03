@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 from .split_model import SplitModel
-from .resnet import ResNetS
+from .concrete import ResNetS, ResNet
 import trojanvision.models
 
 class_dict: dict[str, SplitModel] = {
     'resnets': ResNetS,
+    'resnet': ResNet,
 }
 
 
