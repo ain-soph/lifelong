@@ -34,4 +34,4 @@ __pycache__
 
 note.txt
 temp
-.ipynb
+*.ipynb
