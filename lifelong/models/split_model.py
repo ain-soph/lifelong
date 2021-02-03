@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import _LRScheduler
 if TYPE_CHECKING:
     import torch.utils.data
 
-
+# CUDA_VISIBLE_DEVICES=0 python train.py --verbose 1 --color --tqdm --flush_secs 20 --dataset split_cifar100 --model resnets --weight_decay 0.0 --momentum 0.0 --validate_interval 1 --batch_size 10 --epoch 8 --lr 0.03 --log_dir /data/rbp5354/log/robust_agem_cluster --tensorboard --adv_train
 class SplitModel(ImageModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

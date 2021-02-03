@@ -3,7 +3,7 @@
 from .gem import GEM
 from trojanvision.optim import PGD
 from trojanzoo.environ import env
-from trojanzoo.utils.data import sample_batch, dataset_to_list
+# from trojanzoo.utils.data import sample_batch, dataset_to_list
 
 import torch
 import torch.nn
@@ -11,7 +11,7 @@ import torch.optim
 import torch.utils.data
 import argparse
 
-# CUDA_VISIBLE_DEVICES=0 python train.py --verbose 1 --color --tqdm --flush_secs 20 --dataset cifar100 --model resnets --weight_decay 0.0 --momentum 0.0 --validate_interval 1 --batch_size 10 --epoch 8 --lr 0.03 --memory_size 13 --sample_size 256 --memory_method cluster --log_dir /data/rbp5354/log/robust_agem_cluster --tensorboard --adv_train
+# CUDA_VISIBLE_DEVICES=0 python train.py --verbose 1 --color --tqdm --flush_secs 20 --dataset split_cifar100 --model resnets --weight_decay 0.0 --momentum 0.0 --validate_interval 1 --batch_size 10 --epoch 8 --lr 0.03 --memory_size 13 --sample_size 256 --memory_method cluster --log_dir /data/rbp5354/log/robust_agem_cluster --tensorboard --adv_train
 class AGEM(GEM):
 
     @classmethod

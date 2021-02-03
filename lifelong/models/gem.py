@@ -26,7 +26,7 @@ class GEM(SplitModel):
         group.add_argument('--memory_size', dest='memory_size', type=int)
         group.add_argument('--memory_method', dest='memory_method')
 
-    def __init__(self, *args, memory_size: int = 256, memory_method: str = 'random', **kwargs):
+    def __init__(self, *args, memory_size: int = 13, memory_method: str = 'random', **kwargs):
         super().__init__(*args, **kwargs)
         self.param_list['gem'] = ['memory_size', 'memory_method']
         self.memory_size = memory_size
