@@ -29,17 +29,17 @@ class ICARL(SplitModel):
         self.param_list['icarl'] = []
         self.memory_size = memory_size
         self.memory_indices: dict[int, list[int]] = {}
-        self.memory_data: dict[int, torch.Tensor] = {} 
-        self.memory_targets: dict[int, list[int]] = {}  
+        self.memory_data: dict[int, torch.Tensor] = {}
+        self.memory_targets: dict[int, list[int]] = {}
         self.past_labels: int = 0
 
-        for mode, loader_list in self.dataset.loader.items(): # train/valid
+        for mode, loader_list in self.dataset.loader.items():  # train/valid
             ind_offset = 0
             for i, loader in enumerate(loader_list):
                 data, targets = dataset_to_list(loader.dataset)
                 indices = [_id + ind_offset for _id in range(len(targets))]
                 ind_offset += len(targets)
-                dataset = IndexDataset(indices, torch.stack(data), targets)  
+                dataset = IndexDataset(indices, torch.stack(data), targets)
                 self.dataset.loader[mode][i] = self.dataset.get_dataloader(mode=mode, dataset=dataset)
         self.indices: torch.Tensor = []    # temp variable
         self.q: torch.Tensor = torch.zeros(len(self.dataset.get_full_dataset('train')), self.num_classes)
@@ -58,14 +58,14 @@ class ICARL(SplitModel):
         if _output is None:
             _output = self(_input, **kwargs)
         _task = torch.full([_label.shape[0]], self.current_task)
-        current_output, task_label = self.prune_output_and_label(_output, _label, _task=_task if self._model.training else None)
+        current_output, task_label = self.prune_output_and_label(
+            _output, _label, _task=_task if self._model.training else None)
         task_num_classes = current_output.shape[1]
         _onehot_label = onehot_label(task_label, task_num_classes).to(current_output.dtype)
         _onehot_label[~np.isin(_label.detach().cpu(), self.dataset.class_order_list[self.current_task])] = 0
         loss = self.criterion(current_output, _onehot_label)
-        
+
         if self.current_task > 0 and self._model.training:
-            _output = self(_input, **kwargs)
             _mask = torch.zeros(self.num_classes).bool()
             for task_id in range(self.current_task):
                 _mask |= self.task_mask[task_id]  # (num_classes)
@@ -117,7 +117,7 @@ class ICARL(SplitModel):
                     found_fm_sum += y_feats[_id]
                     id_list.pop(_id)
             self.memory_indices[y] = y_indices[found_ids]
-            self.memory_data[y] = y_input[found_ids]  
+            self.memory_data[y] = y_input[found_ids]
             self.memory_targets[y] = [y] * len(found_ids)
 
         # update loader
@@ -134,7 +134,8 @@ class ICARL(SplitModel):
             all_data = torch.cat((org_data, mem_data))
             all_targets = org_targets + mem_targets
             all_dataset = IndexDataset(all_indices, all_data, all_targets)
-            self.dataset.loader['train'][self.current_task + 1] = self.dataset.get_dataloader(mode='train', dataset=all_dataset)
+            self.dataset.loader['train'][self.current_task +
+                                         1] = self.dataset.get_dataloader(mode='train', dataset=all_dataset)
 
         # Calculate q
         for data in self.dataset.loader['train'][self.current_task + 1]:
