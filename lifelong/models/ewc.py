@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from .split_model import SplitModel
+from .lifelong_model import LifelongModel
 from trojanzoo.utils.data import dataset_to_list, sample_batch
 from trojanzoo.environ import env
 from trojanzoo.utils.influence import InfluenceFunction
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     import torch.utils.data
 
 
-class EWC(SplitModel):
+class EWC(LifelongModel):
     @classmethod
     def add_argument(cls, group: argparse._ArgumentGroup):
         super().add_argument(group)

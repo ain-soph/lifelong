@@ -7,9 +7,10 @@ import torch.utils.data
 
 
 class LifelongDataset(Dataset):
-    def __init__(self, task_num: int, shuffle_tasks: bool = False, **kwargs):
+    def __init__(self, lifelong_type: str, task_num: int, shuffle_tasks: bool = False, **kwargs):
         super().__init__(**kwargs)
-        self.param_list['lifelong'] = ['task_num', 'shuffle_tasks']
+        self.param_list['lifelong'] = ['lifelong_type', 'task_num', 'shuffle_tasks']
+        self.lifelong_type = lifelong_type
         self.task_num = task_num
         self.shuffle_tasks = shuffle_tasks
         self.task_idx: list[int] = torch.arange(self.task_num).tolist()

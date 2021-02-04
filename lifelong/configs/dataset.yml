@@ -1,0 +1,4 @@
+default_dataset: split_cifar100
+batch_size:
+  default: 10
+  permuted_mnist: 1000

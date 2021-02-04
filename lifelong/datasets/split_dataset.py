@@ -14,8 +14,9 @@ class SplitDataset(LifelongDataset):
             # np.random.shuffle(class_order)
             # class_order = np.random.choice(class_order, len(class_order), replace=False)
         self.class_order = class_order
+        self.class_order_list: list[list[int]] = []
 
-        super().__init__(**kwargs)
+        super().__init__(lifelong_type='split', **kwargs)
         self.param_list['split'] = ['class_order_list']
 
     def get_dataset_dict_fn(self) -> dict[str, list[torch.utils.data.Dataset]]:

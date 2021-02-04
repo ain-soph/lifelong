@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from .split_model import SplitModel
+from .lifelong_model import LifelongModel
 from trojanzoo.utils.data import dataset_to_list, sample_batch
 from trojanzoo.environ import env
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     import torch.utils.data
 
 
-class GPM(SplitModel):
+class GPM(LifelongModel):
 
     @classmethod
     def add_argument(cls, group: argparse._ArgumentGroup):
