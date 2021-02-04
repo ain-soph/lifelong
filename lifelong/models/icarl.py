@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from .split_model import SplitModel
+from .lifelong_model import LifelongModel
 from trojanzoo.utils.data import IndexDataset, dataset_to_list
 from trojanzoo.utils.tensor import onehot_label
 from trojanzoo.environ import env
@@ -12,13 +12,12 @@ import numpy as np
 from typing import TYPE_CHECKING
 import argparse    # TODO: python 3.10
 if TYPE_CHECKING:
-    import torch.nn
     import torch.autograd
     import torch.optim
     import torch.utils.data
 
 
-class ICARL(SplitModel):
+class ICARL(LifelongModel):
     @classmethod
     def add_argument(cls, group: argparse._ArgumentGroup):
         super().add_argument(group)

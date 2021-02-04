@@ -1,0 +1,8 @@
+adv_train_alpha:
+  permuted_mnist: 0.1
+
+adv_train_epsilon:
+  permuted_mnist: 0.3
+
+adv_train_valid_epsilon:
+  permuted_mnist: 0.3

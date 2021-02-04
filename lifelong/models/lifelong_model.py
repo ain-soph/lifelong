@@ -20,10 +20,13 @@ if TYPE_CHECKING:
 # CUDA_VISIBLE_DEVICES=0 python train.py --verbose 1 --color --tqdm --flush_secs 20 --dataset split_cifar100 --model resnets --weight_decay 0.0 --momentum 0.0 --validate_interval 1 --batch_size 10 --epoch 8 --lr 0.03 --log_dir /data/rbp5354/log/robust_agem_cluster --tensorboard --adv_train
 
 
-class SplitModel(ImageModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class LifelongModel(ImageModel):
+    def __init__(self, *args, dataset: SplitDataset = None, **kwargs):
+        if dataset.lifelong_type == 'permuted':
+            kwargs['num_classes'] = dataset.num_classes // dataset.task_num
+        super().__init__(*args, dataset=dataset, **kwargs)
         self.dataset: SplitDataset
+        self.num_classes = self.dataset.num_classes
         self.current_task: int = 0
         self.task_mask = torch.zeros(self.dataset.task_num, self.num_classes, dtype=torch.bool)
         for task_id in range(self.dataset.task_num):
@@ -36,6 +39,12 @@ class SplitModel(ImageModel):
             [sorted(self.dataset.class_order_list[self.label_to_task[label]]).index(label) for label in range(self.num_classes)])
         self.params: list[list[nn.Parameter]] = []
         self.param_numels: list[int] = []
+
+    def get_logits(self, _input: torch.Tensor, **kwargs) -> torch.Tensor:
+        logits = super().get_logits(_input, **kwargs)
+        if self.dataset.lifelong_type == 'permuted':
+            logits = logits.repeat(1, self.dataset.task_num)
+        return logits
 
     def loss(self, _input: torch.Tensor = None, _label: torch.Tensor = None,
              _output: torch.Tensor = None, **kwargs) -> torch.Tensor:
@@ -90,7 +99,7 @@ class SplitModel(ImageModel):
                writer: SummaryWriter = None, main_tag: str = 'train', tag: str = '',
                verbose: bool = True, indent: int = 0,
                adv_train: bool = False, adv_train_alpha: float = 2.0 / 255, adv_train_epsilon: float = 8.0 / 255,
-               adv_train_iter: int = 7, **kwargs):
+               adv_train_iter: int = 7, adv_train_valid_epsilon: float = 8.0 / 255, **kwargs):
         self.params = optimizer.param_groups[0]['params']
         self.param_numels = [param.data.numel() for param in self.params]
         if after_task_fn is None and hasattr(self, 'after_task_fn'):
@@ -110,7 +119,7 @@ class SplitModel(ImageModel):
                            save_fn=save_fn, file_path=file_path, folder_path=folder_path, suffix=suffix,
                            writer=writer, main_tag=main_tag, verbose=verbose,
                            adv_train=adv_train, adv_train_alpha=adv_train_alpha, adv_train_epsilon=adv_train_epsilon,
-                           adv_train_iter=adv_train_iter, **kwargs)
+                           adv_train_iter=adv_train_iter, adv_train_valid_epsilon=adv_train_valid_epsilon, **kwargs)
             if callable(after_task_fn):
                 after_task_fn(task_id=task_id)
             if isinstance(lr_scheduler, _LRScheduler):

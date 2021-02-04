@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 
-from .split_model import SplitModel as MethodClass
+from .lifelong_model import LifelongModel
 from .gem import GEM
-from .agem import AGEM
+from .agem import AGEM as MethodClass
 from .ewc import EWC
 from .icarl import ICARL
 
-from trojanvision.models.resnet import ResNetS, ResNet
+import trojanvision.models
 
 
-class ResNetS(ResNetS, MethodClass):
+class ResNetS(trojanvision.models.ResNetS, MethodClass):
     pass
 
 
-class ResNet(ResNet, MethodClass):
+class ResNet(trojanvision.models.ResNet, MethodClass):
+    pass
+
+
+class Net(trojanvision.models.Net, MethodClass):
     pass

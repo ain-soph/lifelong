@@ -1,0 +1,5 @@
+default_model:
+  split_cifar100: resnets
+  split_cub200_2011: resnet
+  split_cub200: resnet
+  permuted_mnist: net
