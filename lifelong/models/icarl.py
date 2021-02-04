@@ -137,7 +137,7 @@ class ICARL(SplitModel):
             self.dataset.loader['train'][self.current_task + 1] = self.dataset.get_dataloader(mode='train', dataset=all_dataset)
 
         # Calculate q
-        if self.current_task+1 < len(self.dataset.task_num):
+        if self.current_task+1 < self.dataset.task_num:
             for data in self.dataset.loader['train'][self.current_task + 1]:
                 _input, _label = self.get_data(data)
                 idx = self.indices
