@@ -23,7 +23,7 @@ class EWC(LifelongModel):
         group.add_argument('--lambd', dest='lambda for each past task', type=float)
         group.add_argument('--sample_num', dest='sample batch numner', type=int)
 
-    def __init__(self, *args, lambd: float = 10, sample_num: int = 64, **kwargs):
+    def __init__(self, *args, lambd: float = 1, sample_num: int = 64, **kwargs):
         super().__init__(*args, **kwargs)
         self.param_list['ewc'] = ['lambd', 'sample_num']
         self.lambd = lambd

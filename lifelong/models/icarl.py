@@ -41,7 +41,11 @@ class ICARL(LifelongModel):
                 dataset = IndexDataset(indices, torch.stack(data), targets)
                 self.dataset.loader[mode][i] = self.dataset.get_dataloader(mode=mode, dataset=dataset)
         self.indices: torch.Tensor = []    # temp variable
-        self.q: torch.Tensor = torch.zeros(len(self.dataset.get_full_dataset('train')), self.num_classes)
+        q_shape = [len(self.dataset.get_full_dataset('train')), self.dataset.num_classes]
+        if self.dataset.lifelong_type == 'permuted':
+            q_shape[0] *= self.dataset.task_num
+            q_shape[1] = q_shape[1] // self.dataset.task_num
+        self.q: torch.Tensor = torch.zeros(q_shape)
 
     def get_data(self, data: tuple[torch.Tensor, torch.Tensor, torch.Tensor], **kwargs) -> tuple[torch.Tensor, torch.Tensor]:
         self.indices = data[0]
@@ -65,13 +69,16 @@ class ICARL(LifelongModel):
         loss = self.criterion(current_output, _onehot_label)
 
         if self.current_task > 0 and self._model.training:
-            _mask = torch.zeros(self.num_classes).bool()
-            for task_id in range(self.current_task):
-                _mask |= self.task_mask[task_id]  # (num_classes)
-            _mask = _mask.repeat(_label.shape[0], 1)
-            prev_output, task_label = self.prune_output_and_label(_output, _label, _mask=_mask)
             _q: torch.Tensor = self.q[self.indices]    # (N, num_classes)
-            _q = _q[_mask].view(_label.shape[0], -1).to(prev_output.device)
+            if self.dataset.lifelong_type == 'permuted':
+                prev_output = _output[:,:self.dataset.num_classes//self.dataset.task_num]
+            else:
+                _mask = torch.zeros(self.num_classes).bool()
+                for task_id in range(self.current_task):
+                    _mask |= self.task_mask[task_id]  # (num_classes)
+                _mask = _mask.repeat(_label.shape[0], 1)
+                prev_output, task_label = self.prune_output_and_label(_output, _label, _mask=_mask)
+                _q = _q[_mask].view(_label.shape[0], -1).to(prev_output.device)
             loss += self.criterion(prev_output, _q)
         return loss
 
@@ -140,4 +147,7 @@ class ICARL(LifelongModel):
             for data in self.dataset.loader['train'][self.current_task + 1]:
                 _input, _label = self.get_data(data)
                 idx = self.indices
-                self.q[idx] = F.sigmoid(self(_input)).to(self.q.device)
+                q_rst = F.sigmoid(self(_input))
+                if self.dataset.lifelong_type == 'permuted':
+                    q_rst = q_rst[:,:self.dataset.num_classes//self.dataset.task_num]
+                self.q[idx] = q_rst.to(self.q.device)
