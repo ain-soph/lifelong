@@ -2,9 +2,9 @@
 
 from .lifelong_model import LifelongModel
 from .gem import GEM
-from .agem import AGEM 
-from .ewc import EWC as MethodClass
-from .icarl import ICARL
+from .agem import AGEM
+from .ewc import EWC
+from .icarl import ICARL as MethodClass
 
 import trojanvision.models
 

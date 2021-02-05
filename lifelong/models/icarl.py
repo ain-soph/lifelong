@@ -72,6 +72,7 @@ class ICARL(LifelongModel):
             _q: torch.Tensor = self.q[self.indices]    # (N, num_classes)
             if self.dataset.lifelong_type == 'permuted':
                 prev_output = _output[:,:self.dataset.num_classes//self.dataset.task_num]
+                _q = _q.to(prev_output.device)
             else:
                 _mask = torch.zeros(self.num_classes).bool()
                 for task_id in range(self.current_task):
